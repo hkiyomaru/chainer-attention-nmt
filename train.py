@@ -10,20 +10,17 @@ import six
 import chainer
 from chainer import cuda
 from chainer.dataset import convert
-import chainer.functions as F
-import chainer.links as L
 from chainer import training
 from chainer.training import extensions
 
-from net import AttentionSeq2seq
+from net import Seq2seq
 
-
+PAD = -1
 UNK = 0
 EOS = 1
-BOS = 2
 
 
-def seq2seq_pad_concat_convert(xy_batch, device, eos_id=EOS, bos_id=BOS):
+def seq2seq_pad_concat_convert(xy_batch, device):
     """
     Args:
         xy_batch (list of tuple of two numpy.ndarray-s or cupy.ndarray-s):
@@ -51,20 +48,16 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=EOS, bos_id=BOS):
     xp = cuda.get_array_module(x_block)
 
     x_block = xp.pad(x_block, ((0, 0), (0, 1)),
-                     'constant', constant_values=-1)
+                     'constant', constant_values=PAD)
     for i_batch, seq in enumerate(x_seqs):
-        x_block[i_batch, len(seq)] = eos_id
-    x_block = xp.pad(x_block, ((0, 0), (1, 0)),
-                     'constant', constant_values=bos_id)
+        x_block[i_batch, len(seq)] = EOS
 
     y_out_block = xp.pad(y_block, ((0, 0), (0, 1)),
-                         'constant', constant_values=-1)
+                         'constant', constant_values=PAD)
     for i_batch, seq in enumerate(y_seqs):
-        y_out_block[i_batch, len(seq)] = eos_id
+        y_out_block[i_batch, len(seq)] = EOS
 
-    y_in_block = xp.pad(y_block, ((0, 0), (1, 0)),
-                        'constant', constant_values=bos_id)
-    return (x_block, y_in_block, y_out_block)
+    return (x_block, y_out_block)
 
 
 class CalculateBleu(chainer.training.Extension):
@@ -153,10 +146,18 @@ def main():
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--resume', '-r', default='',
                         help='resume the training from snapshot')
-    parser.add_argument('--unit', '-u', type=int, default=1024,
+    parser.add_argument('--encoder-unit', type=int, default=256,
                         help='number of units')
-    parser.add_argument('--layer', '-l', type=int, default=3,
+    parser.add_argument('--encoder-layer', type=int, default=3,
                         help='number of layers')
+    parser.add_argument('--encoder-dropout', type=int, default=0.1,
+                        help='number of layers')
+    parser.add_argument('--decoder-unit', type=int, default=256,
+                        help='number of units')
+    parser.add_argument('--attention-unit', type=int, default=256,
+                        help='number of units')
+    parser.add_argument('--maxout-unit', type=int, default=256,
+                        help='number of units')
     parser.add_argument('--min-source-sentence', type=int, default=1,
                         help='minimium length of source sentence')
     parser.add_argument('--max-source-sentence', type=int, default=50,
@@ -199,7 +200,9 @@ def main():
     target_words = {i: w for w, i in target_ids.items()}
     source_words = {i: w for w, i in source_ids.items()}
 
-    model = AttentionSeq2seq(args.layer, len(source_ids), len(target_ids), args.unit)
+    model = Seq2seq(len(source_ids), len(target_ids), args.encoder_layer,
+                    args.encoder_unit, args.encoder_dropout,
+                    args.decoder_unit, args.attention_unit, args.maxout_unit)
     if args.gpu >= 0:
         chainer.cuda.get_device(args.gpu).use()
         model.to_gpu(args.gpu)
@@ -210,15 +213,18 @@ def main():
     train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
     updater = training.StandardUpdater(
         train_iter, optimizer,
-        converter=seq2seq_pad_concat_convert, device=args.gpu)
+        converter=seq2seq_pad_concat_convert, device=args.gpu
+    )
     trainer = training.Trainer(updater, (args.epoch, 'epoch'))
     trainer.extend(extensions.LogReport(
-        trigger=(args.log_interval, 'iteration')))
+        trigger=(args.log_interval, 'iteration'))
+    )
     trainer.extend(extensions.PrintReport(
         ['epoch', 'iteration', 'main/loss', 'validation/main/loss',
          'main/perp', 'validation/main/perp', 'validation/main/bleu',
          'elapsed_time']),
-        trigger=(args.log_interval, 'iteration'))
+        trigger=(args.log_interval, 'iteration')
+    )
 
     if args.validation_source and args.validation_target:
         test_source = load_data(source_ids, args.validation_source)
@@ -227,9 +233,11 @@ def main():
         test_data = list(six.moves.zip(test_source, test_target))
         test_data = [(s, t) for s, t in test_data if 0 < len(s) and 0 < len(t)]
         test_source_unknown = calculate_unknown_ratio(
-            [s for s, _ in test_data])
+            [s for s, _ in test_data]
+        )
         test_target_unknown = calculate_unknown_ratio(
-            [t for _, t in test_data])
+            [t for _, t in test_data]
+        )
 
         print('Validation data: %d' % len(test_data))
         print('Validation source unknown ratio: %.2f%%' %
