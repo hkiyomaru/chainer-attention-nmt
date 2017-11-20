@@ -79,13 +79,13 @@ class CalculateBleu(chainer.training.Extension):
             references = []
             hypotheses = []
             for i in range(0, len(self.test_data), self.batch):
-                sources, targets = zip(*self.test_data[i:i + self.batch])
+                sources, targets = seq2seq_pad_concat_convert(
+                    self.test_data[i:i + self.batch],
+                    self.device
+                )
                 references.extend([[t.tolist()] for t in targets])
-
-                sources = [
-                    chainer.dataset.to_device(self.device, x) for x in sources]
-                ys = [y.tolist()
-                      for y in self.model.translate(sources, self.max_length)]
+                ys = [y.tolist() for y in self.model.translate(
+                      sources, self.max_length)]
                 hypotheses.extend(ys)
 
         bleu = bleu_score.corpus_bleu(
@@ -246,23 +246,33 @@ def main():
               (test_target_unknown * 100))
 
         @chainer.training.make_extension()
-        def translate(trainer):
-            source, target = test_data[numpy.random.choice(len(test_data))]
-            result = model.translate([model.xp.array(source)])[0]
+        def translate(_):
+            source, target = seq2seq_pad_concat_convert(
+                [test_data[numpy.random.choice(len(test_data))]],
+                args.gpu
+            )
+            result = model.translate(source)[0].reshape(1, -1)
+            source, target, result = source[0], target[0], result[0]
 
-            source_sentence = ' '.join([source_words[x] for x in source])
-            target_sentence = ' '.join([target_words[y] for y in target])
-            result_sentence = ' '.join([target_words[y] for y in result])
+            source_sentence = ' '.join([source_words[int(x)] for x in source])
+            target_sentence = ' '.join([target_words[int(y)] for y in target])
+            result_sentence = ' '.join([target_words[int(y)] for y in result])
             print('# source : ' + source_sentence)
-            print('#  result : ' + result_sentence)
-            print('#  expect : ' + target_sentence)
+            print('# result : ' + result_sentence)
+            print('# expect : ' + target_sentence)
 
         trainer.extend(
-            translate, trigger=(args.validation_interval, 'iteration'))
+            translate,
+            trigger=(args.validation_interval, 'iteration')
+        )
+
         trainer.extend(
             CalculateBleu(
-                model, test_data, 'validation/main/bleu', device=args.gpu),
-            trigger=(args.validation_interval, 'iteration'))
+                model, test_data, device=args.gpu,
+                key='validation/main/bleu'
+            ),
+            trigger=(args.validation_interval, 'iteration')
+        )
 
     print('start training')
     trainer.run()
