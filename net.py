@@ -64,7 +64,7 @@ class Seq2seq(chainer.Chain):
 
         return loss
 
-    def translate(self, xs):
+    def translate(self, xs, max_length=100):
         """Generate sentences based on xs.
 
         Args:
@@ -76,7 +76,7 @@ class Seq2seq(chainer.Chain):
         """
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             hxs = self.encoder(xs)
-            ys = self.decoder.translate(hxs)
+            ys = self.decoder.translate(hxs, max_length)
 
         return ys
 
@@ -176,7 +176,7 @@ class Decoder(chainer.Chain):
 
         return os
 
-    def translate(self, hxs, max_length=100):
+    def translate(self, hxs, max_length):
         """Generate target sentences given hidden states of source sentences.
 
         Args:
@@ -186,7 +186,7 @@ class Decoder(chainer.Chain):
             ys: Generated sentence
 
         """
-        batch_size, _ = hxs.shape
+        batch_size, _, _ = hxs.shape
         compute_context = self.attention(hxs)
         c = Variable(self.xp.zeros((batch_size, self.n_units), 'f'))
         h = F.broadcast_to(self.bos_state, ((batch_size, self.n_units)))
