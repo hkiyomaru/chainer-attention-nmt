@@ -13,10 +13,7 @@ from chainer import training
 from chainer.training import extensions
 
 from net import Seq2seq
-
-PAD = -1
-UNK = 0
-EOS = 1
+from net import PAD, UNK, EOS
 
 
 def seq2seq_pad_concat_convert(xy_batch, device):
@@ -206,13 +203,15 @@ def main():
         converter=seq2seq_pad_concat_convert, device=args.gpu
     )
     trainer = training.Trainer(updater, (args.epoch, 'epoch'))
-    trainer.extend(extensions.LogReport(
-        trigger=(args.log_interval, 'iteration'))
+    trainer.extend(
+        extensions.LogReport(trigger=(args.log_interval, 'iteration'))
     )
-    trainer.extend(extensions.PrintReport(
-        ['epoch', 'iteration', 'main/loss', 'validation/main/loss',
-         'main/perp', 'validation/main/perp', 'validation/main/bleu',
-         'elapsed_time']),
+    trainer.extend(
+        extensions.PrintReport(
+            ['epoch', 'iteration', 'main/loss', 'validation/main/loss',
+             'main/perp', 'validation/main/perp', 'validation/main/bleu',
+             'elapsed_time']
+        ),
         trigger=(args.log_interval, 'iteration')
     )
 
