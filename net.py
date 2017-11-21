@@ -145,7 +145,7 @@ class Decoder(chainer.Chain):
             hxs: Hidden states for source sequences.
 
         Returns:
-            loss: Cross-entoropy loss between predictions and ys.
+            os: Probability density for output sequences.
 
         """
         batch_size, max_length, encoder_output_size = hxs.shape
@@ -168,8 +168,10 @@ class Decoder(chainer.Chain):
 
             c, h = self.lstm(c, h, concatenated)
             concatenated = F.concat((concatenated, h))
+            o = self.w(self.maxout(concatenated))
 
-            os.append(self.w(self.maxout(concatenated)))
+            os.append(o)
+            previous_embedding = self.embed_y(y)
         return os
 
     def translate(self, hxs, max_length):
@@ -179,7 +181,7 @@ class Decoder(chainer.Chain):
             hxs: Hidden states for source sequences.
 
         Returns:
-            ys: Generated sentence
+            ys: Generated sequences.
 
         """
         batch_size, _, _ = hxs.shape
@@ -200,8 +202,10 @@ class Decoder(chainer.Chain):
             concatenated = F.concat((concatenated, h))
 
             logit = self.w(self.maxout(concatenated))
+            y = F.reshape(F.argmax(logit, axis=1), (batch_size, ))
 
-            results.append(F.reshape(F.argmax(logit, axis=1), (batch_size, )))
+            results.append(y)
+            previous_embedding = self.embed_y(y)
         else:
             results = F.separate(F.transpose(F.vstack(results)), axis=0)
 
