@@ -255,13 +255,13 @@ def main():
             trigger=(args.validation_interval, 'iteration')
         )
 
-        # trainer.extend(
-        #     CalculateBleu(
-        #         model, test_data, device=args.gpu,
-        #         key='validation/main/bleu'
-        #     ),
-        #     trigger=(args.validation_interval, 'iteration')
-        # )
+        trainer.extend(
+            CalculateBleu(
+                model, test_data, device=args.gpu,
+                key='validation/main/bleu'
+            ),
+            trigger=(args.validation_interval, 'iteration')
+        )
 
     print('start training')
 
