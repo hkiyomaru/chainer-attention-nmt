@@ -51,17 +51,17 @@ class Seq2seq(chainer.Chain):
 
         concatenated_os = F.concat(os, axis=0)
         concatenated_ys = F.flatten(ys)
+        n_words = len(self.xp.where(concatenated_ys.data != EOS)[0])
+
         loss = F.sum(
             F.softmax_cross_entropy(
                 concatenated_os, concatenated_ys, reduce='no', ignore_label=PAD
             )
         )
-        loss = loss / batch_size
+        loss = loss / n_words
         chainer.report({'loss': loss.data}, self)
-        n_words = len(self.xp.where(concatenated_ys.data != EOS)[0])
         perp = self.xp.exp(loss.data * batch_size / n_words)
         chainer.report({'perp': perp}, self)
-
         return loss
 
     def translate(self, xs, max_length=100):
@@ -77,7 +77,6 @@ class Seq2seq(chainer.Chain):
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             hxs = self.encoder(xs)
             ys = self.decoder.translate(hxs, max_length)
-
         return ys
 
 
@@ -105,11 +104,9 @@ class Encoder(chainer.Chain):
         exs = F.separate(exs, axis=0)
         masks = self.xp.vsplit(xs != -1, batch_size)
         masked_exs = [ex[mask.reshape((-1, ))] for ex, mask in zip(exs, masks)]
-        masked_exs = sorted(masked_exs, key=lambda x: x.shape[0], reverse=True)
 
         _, _, hxs = self.bilstm(None, None, masked_exs)
         hxs = F.pad_sequence(hxs, length=max_length, padding=0.0)
-
         return hxs
 
 
@@ -148,7 +145,7 @@ class Decoder(chainer.Chain):
             hxs: Hidden states for source sequences.
 
         Returns:
-            loss: Cross-entoropy loss between predictions and ys.
+            os: Probability density for output sequences.
 
         """
         batch_size, max_length, encoder_output_size = hxs.shape
@@ -171,9 +168,10 @@ class Decoder(chainer.Chain):
 
             c, h = self.lstm(c, h, concatenated)
             concatenated = F.concat((concatenated, h))
+            o = self.w(self.maxout(concatenated))
 
-            os.append(self.w(self.maxout(concatenated)))
-
+            os.append(o)
+            previous_embedding = self.embed_y(y)
         return os
 
     def translate(self, hxs, max_length):
@@ -183,7 +181,7 @@ class Decoder(chainer.Chain):
             hxs: Hidden states for source sequences.
 
         Returns:
-            ys: Generated sentence
+            ys: Generated sequences.
 
         """
         batch_size, _, _ = hxs.shape
@@ -204,8 +202,10 @@ class Decoder(chainer.Chain):
             concatenated = F.concat((concatenated, h))
 
             logit = self.w(self.maxout(concatenated))
+            y = F.reshape(F.argmax(logit, axis=1), (batch_size, ))
 
-            results.append(F.reshape(F.argmax(logit, axis=1), (batch_size, )))
+            results.append(y)
+            previous_embedding = self.embed_y(y)
         else:
             results = F.separate(F.transpose(F.vstack(results)), axis=0)
 
@@ -215,7 +215,6 @@ class Decoder(chainer.Chain):
             if len(index) > 0:
                 result = result[:index[0, 0] + 1]
             ys.append(result.data)
-
         return ys
 
 
@@ -278,7 +277,6 @@ class AttentionModule(chainer.Chain):
                 F.batch_matmul(attention, hxs, transa=True),
                 (batch_size, encoder_output_size)
             )
-
             return context
 
         return compute_context

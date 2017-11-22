@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+"""Train a seq2seq model."""
 import argparse
 
 from nltk.translate import bleu_score
@@ -14,33 +13,20 @@ from chainer import training
 from chainer.training import extensions
 
 from net import Seq2seq
-
-PAD = -1
-UNK = 0
-EOS = 1
+from net import PAD, UNK, EOS
 
 
 def seq2seq_pad_concat_convert(xy_batch, device):
     """
+
     Args:
-        xy_batch (list of tuple of two numpy.ndarray-s or cupy.ndarray-s):
-            xy_batch[i][0] is an array
-            of token ids of i-th input sentence in a minibatch.
-            xy_batch[i][1] is an array
-            of token ids of i-th target sentence in a minibatch.
-            The shape of each array is `(sentence length, )`.
-        device (int or None): Device ID to which an array is sent. If it is
-            negative value, an array is sent to CPU. If it is positive, an
-            array is sent to GPU with the given ID. If it is ``None``, an
-            array is left in the original device.
+        xy_batch: List of tuple of source and target sentences
+        device: Device ID to which an array is sent.
+
     Returns:
         Tuple of Converted array.
-            (input_sent_batch_array, target_sent_batch_input_array,
-            target_sent_batch_output_array).
-            The shape of each array is `(batchsize, max_sentence_length)`.
-            All sentences are padded with -1 to reach max_sentence_length.
-    """
 
+    """
     x_seqs, y_seqs = zip(*xy_batch)
 
     x_block = convert.concat_examples(x_seqs, device, padding=-1)
@@ -65,12 +51,12 @@ class CalculateBleu(chainer.training.Extension):
     trigger = 1, 'epoch'
     priority = chainer.training.PRIORITY_WRITER
 
-    def __init__(
-            self, model, test_data, key, batch=100, device=-1, max_length=100):
+    def __init__(self, model, test_data, key,
+                 batch_size=100, device=-1, max_length=100):
         self.model = model
         self.test_data = test_data
         self.key = key
-        self.batch = batch
+        self.batch_size = batch_size
         self.device = device
         self.max_length = max_length
 
@@ -78,9 +64,9 @@ class CalculateBleu(chainer.training.Extension):
         with chainer.no_backprop_mode():
             references = []
             hypotheses = []
-            for i in range(0, len(self.test_data), self.batch):
+            for i in range(0, len(self.test_data), self.batch_size):
                 sources, targets = seq2seq_pad_concat_convert(
-                    self.test_data[i:i + self.batch],
+                    self.test_data[i:i + self.batch_size],
                     self.device
                 )
                 references.extend([[t.tolist()] for t in targets])
@@ -101,11 +87,10 @@ def count_lines(path):
 
 def load_vocabulary(path):
     with open(path) as f:
-        # +3 for UNK, EOS, and BOS
-        word_ids = {line.strip(): i + 3 for i, line in enumerate(f)}
-    word_ids['<UNK>'] = 0
-    word_ids['<EOS>'] = 1
-    word_ids['<BOS>'] = 2
+        # +2 for UNK and EOS
+        word_ids = {line.strip(): i + 2 for i, line in enumerate(f)}
+    word_ids['<UNK>'] = UNK
+    word_ids['<EOS>'] = EOS
     return word_ids
 
 
@@ -129,7 +114,7 @@ def calculate_unknown_ratio(data):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Chainer example: seq2seq')
+    parser = argparse.ArgumentParser(description='Attention-based NMT')
     parser.add_argument('SOURCE', help='source sentence list')
     parser.add_argument('TARGET', help='target sentence list')
     parser.add_argument('SOURCE_VOCAB', help='source vocabulary file')
@@ -138,7 +123,7 @@ def main():
                         help='source sentence list for validation')
     parser.add_argument('--validation-target',
                         help='target sentence list for validation')
-    parser.add_argument('--batchsize', '-b', type=int, default=64,
+    parser.add_argument('--batchsize', '-b', type=int, default=128,
                         help='number of sentence pairs in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=20,
                         help='number of sweeps over the dataset to train')
@@ -146,17 +131,17 @@ def main():
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--resume', '-r', default='',
                         help='resume the training from snapshot')
-    parser.add_argument('--encoder-unit', type=int, default=256,
+    parser.add_argument('--encoder-unit', type=int, default=128,
                         help='number of units')
     parser.add_argument('--encoder-layer', type=int, default=3,
                         help='number of layers')
     parser.add_argument('--encoder-dropout', type=int, default=0.1,
                         help='number of layers')
-    parser.add_argument('--decoder-unit', type=int, default=256,
+    parser.add_argument('--decoder-unit', type=int, default=128,
                         help='number of units')
-    parser.add_argument('--attention-unit', type=int, default=256,
+    parser.add_argument('--attention-unit', type=int, default=128,
                         help='number of units')
-    parser.add_argument('--maxout-unit', type=int, default=256,
+    parser.add_argument('--maxout-unit', type=int, default=128,
                         help='number of units')
     parser.add_argument('--min-source-sentence', type=int, default=1,
                         help='minimium length of source sentence')
@@ -186,16 +171,18 @@ def main():
                   <= args.max_source_sentence and
                   args.min_source_sentence <= len(t)
                   <= args.max_source_sentence]
-    train_source_unknown = calculate_unknown_ratio(
-        [s for s, _ in train_data])
-    train_target_unknown = calculate_unknown_ratio(
-        [t for _, t in train_data])
+    train_source_unk = calculate_unknown_ratio(
+        [s for s, _ in train_data]
+    )
+    train_target_unk = calculate_unknown_ratio(
+        [t for _, t in train_data]
+    )
 
-    print('Source vocabulary size: %d' % len(source_ids))
-    print('Target vocabulary size: %d' % len(target_ids))
-    print('Train data size: %d' % len(train_data))
-    print('Train source unknown ratio: %.2f%%' % (train_source_unknown * 100))
-    print('Train target unknown ratio: %.2f%%' % (train_target_unknown * 100))
+    print('Source vocabulary size: {}'.format(len(source_ids)))
+    print('Target vocabulary size: {}'.format(len(target_ids)))
+    print('Train data size: {}'.format(len(train_data)))
+    print('Train source unknown: {0:.2f}'.format(train_source_unk))
+    print('Train target unknown: {0:.2f}'.format(train_target_unk))
 
     target_words = {i: w for w, i in target_ids.items()}
     source_words = {i: w for w, i in source_ids.items()}
@@ -216,13 +203,15 @@ def main():
         converter=seq2seq_pad_concat_convert, device=args.gpu
     )
     trainer = training.Trainer(updater, (args.epoch, 'epoch'))
-    trainer.extend(extensions.LogReport(
-        trigger=(args.log_interval, 'iteration'))
+    trainer.extend(
+        extensions.LogReport(trigger=(args.log_interval, 'iteration'))
     )
-    trainer.extend(extensions.PrintReport(
-        ['epoch', 'iteration', 'main/loss', 'validation/main/loss',
-         'main/perp', 'validation/main/perp', 'validation/main/bleu',
-         'elapsed_time']),
+    trainer.extend(
+        extensions.PrintReport(
+            ['epoch', 'iteration', 'main/loss', 'validation/main/loss',
+             'main/perp', 'validation/main/perp', 'validation/main/bleu',
+             'elapsed_time']
+        ),
         trigger=(args.log_interval, 'iteration')
     )
 
@@ -232,18 +221,16 @@ def main():
         assert len(test_source) == len(test_target)
         test_data = list(six.moves.zip(test_source, test_target))
         test_data = [(s, t) for s, t in test_data if 0 < len(s) and 0 < len(t)]
-        test_source_unknown = calculate_unknown_ratio(
+        test_source_unk = calculate_unknown_ratio(
             [s for s, _ in test_data]
         )
-        test_target_unknown = calculate_unknown_ratio(
+        test_target_unk = calculate_unknown_ratio(
             [t for _, t in test_data]
         )
 
-        print('Validation data: %d' % len(test_data))
-        print('Validation source unknown ratio: %.2f%%' %
-              (test_source_unknown * 100))
-        print('Validation target unknown ratio: %.2f%%' %
-              (test_target_unknown * 100))
+        print('Validation data: {}'.format(len(test_data)))
+        print('Validation source unknown: {0:.2f}'.format(test_source_unk))
+        print('Validation target unknown: {0:.2f}'.format(test_target_unk))
 
         @chainer.training.make_extension()
         def translate(_):
@@ -252,6 +239,7 @@ def main():
                 args.gpu
             )
             result = model.translate(source)[0].reshape(1, -1)
+
             source, target, result = source[0], target[0], result[0]
 
             source_sentence = ' '.join([source_words[int(x)] for x in source])
@@ -275,6 +263,7 @@ def main():
         )
 
     print('start training')
+
     trainer.run()
 
 
