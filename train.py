@@ -147,10 +147,6 @@ def main():
                         help='minimium length of source sentence')
     parser.add_argument('--max-source-sentence', type=int, default=50,
                         help='maximum length of source sentence')
-    parser.add_argument('--min-target-sentence', type=int, default=1,
-                        help='minimium length of target sentence')
-    parser.add_argument('--max-target-sentence', type=int, default=50,
-                        help='maximum length of target sentence')
     parser.add_argument('--log-interval', type=int, default=200,
                         help='number of iteration to show log')
     parser.add_argument('--validation-interval', type=int, default=4000,
@@ -199,8 +195,8 @@ def main():
 
     train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
     updater = training.StandardUpdater(
-        train_iter, optimizer,
-        converter=seq2seq_pad_concat_convert, device=args.gpu
+        train_iter, optimizer, converter=seq2seq_pad_concat_convert,
+        device=args.gpu
     )
     trainer = training.Trainer(updater, (args.epoch, 'epoch'))
     trainer.extend(
