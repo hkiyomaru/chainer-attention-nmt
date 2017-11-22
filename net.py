@@ -50,7 +50,7 @@ class Seq2seq(chainer.Chain):
         os = self.decoder(ys, hxs)
 
         concatenated_os = F.concat(os, axis=0)
-        concatenated_ys = F.flatten(ys)
+        concatenated_ys = F.flatten(ys.T)
         n_words = len(self.xp.where(concatenated_ys.data != EOS)[0])
 
         loss = F.sum(
