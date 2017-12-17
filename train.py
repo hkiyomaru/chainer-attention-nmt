@@ -1,116 +1,19 @@
 """Train a seq2seq model."""
 import argparse
 
-from nltk.translate import bleu_score
 import numpy
-import progressbar
 import six
 
 import chainer
-from chainer import cuda
-from chainer.dataset import convert
 from chainer import training
 from chainer.training import extensions
 
 from net import Seq2seq
-from net import PAD, UNK, EOS
-
-
-def seq2seq_pad_concat_convert(xy_batch, device):
-    """
-
-    Args:
-        xy_batch: List of tuple of source and target sentences
-        device: Device ID to which an array is sent.
-
-    Returns:
-        Tuple of Converted array.
-
-    """
-    x_seqs, y_seqs = zip(*xy_batch)
-
-    x_block = convert.concat_examples(x_seqs, device, padding=-1)
-    y_block = convert.concat_examples(y_seqs, device, padding=-1)
-    xp = cuda.get_array_module(x_block)
-
-    x_block = xp.pad(x_block, ((0, 0), (0, 1)),
-                     'constant', constant_values=PAD)
-    for i_batch, seq in enumerate(x_seqs):
-        x_block[i_batch, len(seq)] = EOS
-
-    y_out_block = xp.pad(y_block, ((0, 0), (0, 1)),
-                         'constant', constant_values=PAD)
-    for i_batch, seq in enumerate(y_seqs):
-        y_out_block[i_batch, len(seq)] = EOS
-
-    return (x_block, y_out_block)
-
-
-class CalculateBleu(chainer.training.Extension):
-
-    trigger = 1, 'epoch'
-    priority = chainer.training.PRIORITY_WRITER
-
-    def __init__(self, model, test_data, key,
-                 batch_size=100, device=-1, max_length=100):
-        self.model = model
-        self.test_data = test_data
-        self.key = key
-        self.batch_size = batch_size
-        self.device = device
-        self.max_length = max_length
-
-    def __call__(self, trainer):
-        with chainer.no_backprop_mode():
-            references = []
-            hypotheses = []
-            for i in range(0, len(self.test_data), self.batch_size):
-                sources, targets = seq2seq_pad_concat_convert(
-                    self.test_data[i:i + self.batch_size],
-                    self.device
-                )
-                references.extend([[t.tolist()] for t in targets])
-                ys = [y.tolist() for y in self.model.translate(
-                      sources, self.max_length)]
-                hypotheses.extend(ys)
-
-        bleu = bleu_score.corpus_bleu(
-            references, hypotheses,
-            smoothing_function=bleu_score.SmoothingFunction().method1)
-        chainer.report({self.key: bleu})
-
-
-def count_lines(path):
-    with open(path) as f:
-        return sum([1 for _ in f])
-
-
-def load_vocabulary(path):
-    with open(path) as f:
-        # +2 for UNK and EOS
-        word_ids = {line.strip(): i + 2 for i, line in enumerate(f)}
-    word_ids['<UNK>'] = UNK
-    word_ids['<EOS>'] = EOS
-    return word_ids
-
-
-def load_data(vocabulary, path):
-    n_lines = count_lines(path)
-    bar = progressbar.ProgressBar()
-    data = []
-    print('loading...: %s' % path)
-    with open(path) as f:
-        for line in bar(f, max_value=n_lines):
-            words = line.strip().split()
-            array = numpy.array([vocabulary.get(w, UNK) for w in words], 'i')
-            data.append(array)
-    return data
-
-
-def calculate_unknown_ratio(data):
-    unknown = sum((s == UNK).sum() for s in data)
-    total = sum(s.size for s in data)
-    return unknown / total
+from metrics import CalculateBleu
+from utils import load_vocabulary
+from utils import load_data
+from utils import calculate_unknown_ratio
+from utils import seq2seq_pad_concat_convert
 
 
 def main():
