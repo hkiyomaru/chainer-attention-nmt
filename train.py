@@ -164,7 +164,6 @@ def main():
         )
 
     print('start training')
-
     trainer.run()
 
 

@@ -31,8 +31,7 @@ class CalculateBleu(chainer.training.Extension):
                     self.device
                 )
                 references.extend(
-                    [[get_subsequence_before_eos(t).tolist()]
-                     for t in targets]
+                    [[get_subsequence_before_eos(t).tolist()] for t in targets]
                 )
                 ys = [y.tolist() for y in self.model.translate(
                       sources, self.max_length)]

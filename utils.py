@@ -13,10 +13,7 @@ EOS = 1
 
 def get_subsequence_before_eos(seq, eos=EOS):
     index = numpy.argwhere(seq.data == EOS)
-    if len(index) > 0:
-        return seq[:index[0, 0] + 1]
-    else:
-        return seq
+    return seq[:index[0, 0] + 1] if len(index) > 0 else seq
 
 
 def seq2seq_pad_concat_convert(xy_batch, device):
@@ -45,7 +42,6 @@ def seq2seq_pad_concat_convert(xy_batch, device):
                          'constant', constant_values=PAD)
     for i_batch, seq in enumerate(y_seqs):
         y_out_block[i_batch, len(seq)] = EOS
-
     return (x_block, y_out_block)
 
 

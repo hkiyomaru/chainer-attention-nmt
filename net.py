@@ -75,7 +75,6 @@ class Seq2seq(chainer.Chain):
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             hxs = self.encoder(xs)
             ys = self.decoder.translate(hxs, max_length)
-
         return ys
 
 
@@ -106,7 +105,6 @@ class Encoder(chainer.Chain):
 
         _, _, hxs = self.bilstm(None, None, masked_exs)
         hxs = F.pad_sequence(hxs, length=max_length, padding=0.0)
-
         return hxs
 
 
@@ -172,7 +170,6 @@ class Decoder(chainer.Chain):
 
             os.append(o)
             previous_embedding = self.embed_y(y)
-
         return os
 
     def translate(self, hxs, max_length):
@@ -207,13 +204,9 @@ class Decoder(chainer.Chain):
 
             results.append(y)
             previous_embedding = self.embed_y(y)
-        else:
-            results = F.separate(F.transpose(F.vstack(results)), axis=0)
 
-        ys = []
-        for result in results:
-            ys.append(get_subsequence_before_eos(result.data))
-
+        results = F.separate(F.transpose(F.vstack(results)), axis=0)
+        ys = [get_subsequence_before_eos(result.data) for result in results]
         return ys
 
 
