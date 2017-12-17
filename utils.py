@@ -11,6 +11,14 @@ UNK = 0
 EOS = 1
 
 
+def get_subsequence_before_eos(seq, eos=EOS):
+    index = numpy.argwhere(seq.data == EOS)
+    if len(index) > 0:
+        return seq[:index[0, 0] + 1]
+    else:
+        return seq
+
+
 def seq2seq_pad_concat_convert(xy_batch, device):
     """
 

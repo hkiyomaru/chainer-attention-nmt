@@ -4,6 +4,7 @@ from nltk.translate import bleu_score
 import chainer
 
 from utils import seq2seq_pad_concat_convert
+from utils import get_subsequence_before_eos
 
 
 class CalculateBleu(chainer.training.Extension):
@@ -29,7 +30,10 @@ class CalculateBleu(chainer.training.Extension):
                     self.test_data[i:i + self.batch_size],
                     self.device
                 )
-                references.extend([[t.tolist()] for t in targets])
+                references.extend(
+                    [[get_subsequence_before_eos(t).tolist()]
+                     for t in targets]
+                )
                 ys = [y.tolist() for y in self.model.translate(
                       sources, self.max_length)]
                 hypotheses.extend(ys)

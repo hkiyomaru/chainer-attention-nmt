@@ -1,6 +1,4 @@
 """Attention-based seq2seq model."""
-import numpy as np
-
 import chainer
 from chainer import Variable
 from chainer import Parameter
@@ -8,6 +6,7 @@ import chainer.functions as F
 import chainer.links as L
 
 from utils import PAD, EOS
+from utils import get_subsequence_before_eos
 
 
 class Seq2seq(chainer.Chain):
@@ -213,10 +212,7 @@ class Decoder(chainer.Chain):
 
         ys = []
         for result in results:
-            index = np.argwhere(result.data == EOS)
-            if len(index) > 0:
-                result = result[:index[0, 0] + 1]
-            ys.append(result.data)
+            ys.append(get_subsequence_before_eos(result.data))
 
         return ys
 
