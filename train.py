@@ -57,12 +57,14 @@ def main():
                         'with validation dataset')
     parser.add_argument('--out', '-o', default='result',
                         help='directory to output the result')
+    parser.add_argument('--debug', action='store_true',
+                        help='use a small part of training data')
     args = parser.parse_args()
 
     source_ids = load_vocabulary(args.SOURCE_VOCAB)
     target_ids = load_vocabulary(args.TARGET_VOCAB)
-    train_source = load_data(source_ids, args.SOURCE)
-    train_target = load_data(target_ids, args.TARGET)
+    train_source = load_data(source_ids, args.SOURCE, debug=args.debug)
+    train_target = load_data(target_ids, args.TARGET, debug=args.debug)
     assert len(train_source) == len(train_target)
     train_data = [(s, t)
                   for s, t in six.moves.zip(train_source, train_target)

@@ -55,8 +55,8 @@ def load_vocabulary(path):
     return word_ids
 
 
-def load_data(vocabulary, path):
-    n_lines = count_lines(path)
+def load_data(vocabulary, path, debug=False):
+    n_lines = min(10000, count_lines(path)) if debug else count_lines(path)
     bar = progressbar.ProgressBar()
     data = []
     print('loading...: %s' % path)
@@ -65,6 +65,8 @@ def load_data(vocabulary, path):
             words = line.strip().split()
             array = numpy.array([vocabulary.get(w, UNK) for w in words], 'i')
             data.append(array)
+            if len(data) == n_lines:
+                break
     return data
 
 
