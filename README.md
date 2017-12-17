@@ -19,6 +19,28 @@ This repository is partly derived from [this repository](https://github.com/naka
 
 # How to Run
 
+First you need to prepare parallel corpus.
+Download 10^9 French-English corpus from WMT15 website.
+
+[http://www.statmt.org/wmt15/translation-task.html](http://www.statmt.org/wmt15/translation-task.html)
+
 ```
-$ python train.py <path/to/training-source> <path/to/training-target> <path/to/source-vocabulary> <path/to/target-vocabulary> --validation-source <path/to/validation-source> --validation-target <path/to/validation-target> -g <gpu-id>
+$ sh download_wmt.sh
 ```
+
+Now you can get six files:
+
+* Source sentence file: `giga-fren.preprocess.en`
+* Source vocabulary file: `vocab.en`
+* Target sentence file: `giga-fren.preprocess.fr`
+* Source vocabulary file: `vocab.fr`
+* Source sentence file (validation): `newstest2013.preprocess.en`
+* Target sentence file (validation): `newstest2013.preprocess.fr`
+
+Then, let's start training.
+
+```
+$ python train.py giga-fren.preprocess.en giga-fren.preprocess.fr vocab.en vocab.fr --validation-source newstest2013.preprocess.en --validation-target newstest2013.preprocess.fr
+```
+
+See command line help for other options.

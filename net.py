@@ -1,15 +1,12 @@
 """Attention-based seq2seq model."""
-import numpy as np
-
 import chainer
 from chainer import Variable
 from chainer import Parameter
 import chainer.functions as F
 import chainer.links as L
 
-PAD = -1
-UNK = 0
-EOS = 1
+from utils import PAD, EOS
+from utils import get_subsequence_before_eos
 
 
 class Seq2seq(chainer.Chain):
@@ -62,6 +59,7 @@ class Seq2seq(chainer.Chain):
         chainer.report({'loss': loss.data}, self)
         perp = self.xp.exp(loss.data * batch_size / n_words)
         chainer.report({'perp': perp}, self)
+
         return loss
 
     def translate(self, xs, max_length=100):
@@ -77,6 +75,7 @@ class Seq2seq(chainer.Chain):
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             hxs = self.encoder(xs)
             ys = self.decoder.translate(hxs, max_length)
+
         return ys
 
 
@@ -107,6 +106,7 @@ class Encoder(chainer.Chain):
 
         _, _, hxs = self.bilstm(None, None, masked_exs)
         hxs = F.pad_sequence(hxs, length=max_length, padding=0.0)
+
         return hxs
 
 
@@ -172,6 +172,7 @@ class Decoder(chainer.Chain):
 
             os.append(o)
             previous_embedding = self.embed_y(y)
+
         return os
 
     def translate(self, hxs, max_length):
@@ -211,10 +212,8 @@ class Decoder(chainer.Chain):
 
         ys = []
         for result in results:
-            index = np.argwhere(result.data == EOS)
-            if len(index) > 0:
-                result = result[:index[0, 0] + 1]
-            ys.append(result.data)
+            ys.append(get_subsequence_before_eos(result.data))
+
         return ys
 
 

@@ -105,3 +105,11 @@ data
 
 # result
 result
+
+# example corpora
+giga-fren.preprocess.en
+giga-fren.preprocess.fr
+newstest2013.preprocess.en
+newstest2013.preprocess.fr
+vocab.en
+vocab.fr
