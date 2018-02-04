@@ -48,7 +48,7 @@ class Seq2seq(chainer.Chain):
 
         concatenated_os = F.concat(os, axis=0)
         concatenated_ys = F.flatten(ys.T)
-        n_words = len(self.xp.where(concatenated_ys.data != EOS)[0])
+        n_words = len(self.xp.where(concatenated_ys.data != PAD)[0])
 
         loss = F.sum(
             F.softmax_cross_entropy(
@@ -83,8 +83,17 @@ class Encoder(chainer.Chain):
     def __init__(self, n_vocab, n_layers, n_units, dropout):
         super(Encoder, self).__init__()
         with self.init_scope():
-            self.embed_x = L.EmbedID(n_vocab, n_units, ignore_label=-1)
-            self.bilstm = L.NStepBiLSTM(n_layers, n_units, n_units, dropout)
+            self.embed_x = L.EmbedID(
+                n_vocab,
+                n_units,
+                ignore_label=-1
+            )
+            self.bilstm = L.NStepBiLSTM(
+                n_layers,
+                n_units,
+                n_units,
+                dropout
+            )
 
     def __call__(self, xs):
         """Encode source sequences into the representations.
@@ -216,9 +225,18 @@ class AttentionModule(chainer.Chain):
                  n_attention_units, n_decoder_units):
         super(AttentionModule, self).__init__()
         with self.init_scope():
-            self.h = L.Linear(n_encoder_output_units, n_attention_units)
-            self.s = L.Linear(n_decoder_units, n_attention_units)
-            self.o = L.Linear(n_attention_units, 1)
+            self.h = L.Linear(
+                n_encoder_output_units,
+                n_attention_units
+            )
+            self.s = L.Linear(
+                n_decoder_units,
+                n_attention_units
+            )
+            self.o = L.Linear(
+                n_attention_units,
+                1
+            )
         self.n_encoder_output_units = n_encoder_output_units
         self.n_attention_units = n_attention_units
 
