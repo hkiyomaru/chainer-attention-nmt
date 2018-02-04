@@ -133,7 +133,7 @@ class Decoder(chainer.Chain):
                 n_maxout_units,
                 n_maxout_pools
             )
-            self.w = L.Linear(n_units, n_vocab)
+            self.w = L.Linear(n_maxout_units, n_vocab)
             self.attention = AttentionModule(
                 n_encoder_output_units,
                 n_attention_units,
